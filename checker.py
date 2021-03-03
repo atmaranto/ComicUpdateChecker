@@ -2,7 +2,9 @@ import sys, os, json, datetime, re, hashlib
 from urllib.request import urlopen, Request
 
 def BeautifulSoup(f):
+	# Lazily load BeautifulSoup
 	from bs4 import BeautifulSoup as _BeautifulSoup
+	
 	return _BeautifulSoup(f, 'lxml')
 
 BUFFER_SIZE = 1024 * 1024
@@ -119,4 +121,7 @@ for name, configuration in config.items():
 with open(data_file, "w", encoding="utf-8") as f:
 	json.dump(data, f, indent=4)
 
-input("Press enter to exit.")
+try:
+	input("Press enter to exit.")
+except EOFError: # Ignore errors that occur due to an already-closed stdin
+	pass
