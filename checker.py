@@ -121,7 +121,8 @@ for name, configuration in config.items():
 with open(data_file, "w", encoding="utf-8") as f:
 	json.dump(data, f, indent=4)
 
-try:
-	input("Press enter to exit.")
-except EOFError: # Ignore errors that occur due to an already-closed stdin
-	pass
+if os.isatty(sys.stdin.fileno()):
+	try:
+		input("Press enter to exit.")
+	except EOFError: # Ignore errors that occur due to an already-closed stdin
+		pass
