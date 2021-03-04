@@ -1,3 +1,12 @@
+import argparse
+
+ap = argparse.ArgumentParser(description="A checking script to see if comics or similar occasionally-updated websites have updated")
+
+ap.add_argument("--only-show-changes", action="store_const", default=False, const=True, help="Only shows new comic updates", dest="only_show_changes")
+ap.add_argument("--dont-save-changes", action="store_const", default=False, const=True, help="Doesn't save update/hash data to the data file (ignored first run for any comic)", dest="dont_save_changes")
+
+args = ap.parse_args()
+
 import sys, os, json, datetime, re, hashlib
 from urllib.request import urlopen, Request
 
@@ -77,23 +86,42 @@ class SoupHasher:
 		
 		return to_return
 
+first_run_or_save = not args.dont_save_changes
+
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.192 Safari/537.36"
+
+user_agent_headers = {"User-Agent": user_agent}
+
 new = []
 for name, configuration in config.items():
 	#print("Checking", name)
 	
-	if data.get(name, {}).get("last_modified"):
+	data_item = data.get(name)
+	if not data_item:
+		first_run_or_save = True
+		data_item = {}
+	
+	if data_item.get("last_modified"):
 		headers = {
 			"If-Modified-Since": data[name]["last_modified"]
 		}
 	else:
 		headers = {}
 	
+	headers.update(user_agent_headers)
+	
 	try:
 		r = urlopen(Request(configuration["url"], headers=headers))
 	except Exception as err:
 		r = err
-		print(name, "unmodified")
-		continue
+		
+		if r.code == 304:
+			if not args.only_show_changes:
+				print(name, "unmodified")
+			
+			continue
+		else:
+			raise r
 	else:
 		last_modified = r.headers["Last-Modified"]
 		
@@ -106,17 +134,19 @@ for name, configuration in config.items():
 			
 			hexdigest = md5sum(to_hash)
 			
-			if data.get(name, {}).get("hash") != hexdigest:
+			if data_item.get("hash") != hexdigest:
 				last_modified = datetime.datetime.now().strftime(timestamp_format)
 				data.setdefault(name, {})["hash"] = hexdigest
 				print("* {0:} modified (checked via hash)".format(name.upper()))
 			else:
-				print(name, "unmodified (checked via hash)")
+				if not args.only_show_changes:
+					print(name, "unmodified (checked via hash)")
 		else:
 			print("* {0:} modified {1:}".format(name.upper(), datetime.datetime.strptime(last_modified, timestamp_format)))
 			data.setdefault(name, {})["last_modified"] = last_modified
-	
-with open(data_file, "w", encoding="utf-8") as f:
-	json.dump(data, f, indent=4)
+
+if first_run_or_save:
+	with open(data_file, "w", encoding="utf-8") as f:
+		json.dump(data, f, indent=4)
 
 input("Press enter to exit.")
