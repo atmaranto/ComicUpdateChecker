@@ -151,7 +151,7 @@ if first_run_or_save:
 	with open(data_file, "w", encoding="utf-8") as f:
 		json.dump(data, f, indent=4)
 
-if os.isatty(sys.stdin.fileno()):
+if os.isatty(sys.stdin.fileno()) and os.isatty(sys.stdout.fileno()):
 	try:
 		input("Press enter to exit.")
 	except EOFError: # Ignore errors that occur due to an already-closed stdin
