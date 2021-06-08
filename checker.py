@@ -103,7 +103,7 @@ for name, configuration in config.items():
 		first_run_or_save = True
 		data_item = {}
 	
-	if data_item.get("last_modified"):
+	if data_item.get("last_modified") and not configuration.get("override-last-modified"):
 		headers = {
 			"If-Modified-Since": data[name]["last_modified"]
 		}
@@ -117,7 +117,7 @@ for name, configuration in config.items():
 	except Exception as err:
 		r = err
 		
-		if r.code == 304:
+		if getattr(r, 'code') == 304:
 			if not args.only_show_changes:
 				print(name, "unmodified")
 			
@@ -127,7 +127,7 @@ for name, configuration in config.items():
 	else:
 		last_modified = r.headers["Last-Modified"]
 		
-		if last_modified == None:
+		if last_modified == None or configuration.get("override-last-modified"):
 			# Server doesn't support last modified; we'll have to do it ourselves
 			to_hash = r
 			
