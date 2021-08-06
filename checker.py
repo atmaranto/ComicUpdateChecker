@@ -123,7 +123,8 @@ for name, configuration in config.items():
 			
 			continue
 		else:
-			raise r
+			print("Failed to fetch", configuration["url"])
+			raise r from None
 	else:
 		last_modified = r.headers["Last-Modified"]
 		
