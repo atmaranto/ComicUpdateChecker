@@ -2,13 +2,18 @@ import argparse
 
 ap = argparse.ArgumentParser(description="A checking script to see if comics or similar occasionally-updated websites have updated")
 
-ap.add_argument("--only-show-changes", action="store_const", default=False, const=True, help="Only shows new comic updates", dest="only_show_changes")
-ap.add_argument("--dont-save-changes", action="store_const", default=False, const=True, help="Doesn't save update/hash data to the data file (ignored first run for any comic)", dest="dont_save_changes")
+ap.add_argument("--only-show-changes", action="store_true", help="Only shows new comic updates", dest="only_show_changes")
+ap.add_argument("--dont-save-changes", action="store_true", help="Doesn't save update/hash data to the data file (ignored first run for any comic)", dest="dont_save_changes")
+ap.add_argument("--verbose", action="store_true", help="Enables additional verbose through stderr", dest="verbose")
 
 args = ap.parse_args()
 
 import sys, os, json, datetime, re, hashlib
 from urllib.request import urlopen, Request
+
+def verbose(*v_args, **kwargs):
+	if args.verbose:
+		print(*v_args, file=sys.stderr, **kwargs)
 
 def BeautifulSoup(f):
 	# Lazily load BeautifulSoup
@@ -41,6 +46,7 @@ if not os.path.exists(checker_dir):
 	os.makedirs(checker_dir)
 
 config_file = os.path.join(checker_dir, "config.json")
+verbose("Checker config is at:", config_file)
 
 if not os.path.isfile(config_file):
 	print("Warning: no config file at {0:}, nothing to do!".format(config_file), file=sys.stderr)
@@ -63,12 +69,15 @@ else:
 			sys.exit(1)
 
 data_file = os.path.join(checker_dir, "data.json")
+verbose("Checker data is at:", data_file)
 
 if not os.path.isfile(data_file):
 	data = {}
+	verbose("Creating new data file")
 else:
 	with open(data_file, "r", encoding="utf-8") as f:
 		data = json.load(f)
+	verbose("Creating new data file")
 
 class SoupHasher:
 	def __init__(self, soup, criteria):
@@ -96,7 +105,7 @@ user_agent_headers = {"User-Agent": user_agent}
 
 new = []
 for name, configuration in config.items():
-	#print("Checking", name)
+	verbose("Checking", name)
 	
 	data_item = data.get(name)
 	if not data_item:
@@ -113,9 +122,11 @@ for name, configuration in config.items():
 	headers.update(user_agent_headers)
 	
 	try:
+		verbose("Sending request to", configuration["url"])
 		r = urlopen(Request(configuration["url"], headers=headers))
 	except Exception as err:
 		r = err
+		verbose("Got exception " + r.__class__.__name__ + ": code " + str(getattr(r, "code", "None")) + "")
 		
 		if getattr(r, 'code') == 304:
 			if not args.only_show_changes:
@@ -151,6 +162,9 @@ for name, configuration in config.items():
 if first_run_or_save:
 	with open(data_file, "w", encoding="utf-8") as f:
 		json.dump(data, f, indent=4)
+	verbose("Saved data to", data_file)
+else:
+	verbose("first_run_or_save is False -- not saving")
 
 if os.isatty(sys.stdin.fileno()) and os.isatty(sys.stdout.fileno()):
 	try:
