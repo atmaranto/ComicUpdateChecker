@@ -128,7 +128,7 @@ for name, configuration in config.items():
 		r = err
 		verbose("Got exception " + r.__class__.__name__ + ": code " + str(getattr(r, "code", "None")) + "")
 		
-		if getattr(r, 'code') == 304:
+		if getattr(r, 'code', None) == 304:
 			if not args.only_show_changes:
 				print(name, "unmodified")
 			
