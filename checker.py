@@ -4,6 +4,7 @@ ap = argparse.ArgumentParser(description="A checking script to see if comics or 
 
 ap.add_argument("--only-show-changes", action="store_true", help="Only shows new comic updates", dest="only_show_changes")
 ap.add_argument("--dont-save-changes", action="store_true", help="Doesn't save update/hash data to the data file (ignored first run for any comic)", dest="dont_save_changes")
+ap.add_argument("--break-on-error", action="store_true", help="Breaks whenever an error occurs, printing the full traceback", dest="break_on_error")
 ap.add_argument("--verbose", action="store_true", help="Enables additional verbose through stderr", dest="verbose")
 
 args = ap.parse_args()
@@ -134,8 +135,14 @@ for name, configuration in config.items():
 			
 			continue
 		else:
-			print("Failed to fetch", configuration["url"])
-			raise r from None
+			data.setdefault(name, {})["last_error"] = True
+			if args.break_on_error:
+				raise r from None
+			
+			if args.only_show_changes and data.get("name", {}).get("last_error"):
+				continue
+			
+			print("Failed to fetch", configuration["url"] + ":", getattr(err, "reason", None) or err.args)
 	else:
 		last_modified = r.headers["Last-Modified"]
 		
@@ -157,7 +164,8 @@ for name, configuration in config.items():
 					print(name, "unmodified (checked via hash)")
 		else:
 			print("* {0:} modified {1:}".format(name.upper(), datetime.datetime.strptime(last_modified, timestamp_format)))
-			data.setdefault(name, {})["last_modified"] = last_modified
+			data.setdefault(name, {})["last_error"] = False
+			data[name]["last_modified"] = last_modified
 
 if first_run_or_save:
 	with open(data_file, "w", encoding="utf-8") as f:
