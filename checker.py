@@ -10,7 +10,7 @@ ap.add_argument("--verbose", action="store_true", help="Enables additional verbo
 args = ap.parse_args()
 
 import sys, os, json, datetime, re, hashlib
-from urllib.request import urlopen, Request
+import requests
 
 def verbose(*v_args, **kwargs):
 	if args.verbose:
@@ -121,37 +121,41 @@ for name, configuration in config.items():
 		headers = {}
 	
 	headers.update(user_agent_headers)
+	error = None
+	r = None
 	
 	try:
 		verbose("Sending request to", configuration["url"])
-		r = urlopen(Request(configuration["url"], headers=headers))
+		r = requests.get(configuration["url"], headers=headers)
 	except Exception as err:
-		r = err
 		verbose("Got exception " + r.__class__.__name__ + ": code " + str(getattr(r, "code", "None")) + "")
-		
-		if getattr(r, 'code', None) == 304:
+		error = err
+	
+	if error is not None or not r.ok:
+		if getattr(r, 'status_code', None) == 304:
 			if not args.only_show_changes:
-				print(name, "unmodified")
+				print(name, "unmodified (error)")
 			
 			continue
 		else:
-			data.setdefault(name, {})["last_error"] = True
-			if args.break_on_error:
-				raise r from None
+			if args.break_on_error and error is not None:
+				raise error from None
 			
-			if args.only_show_changes and data.get("name", {}).get("last_error"):
+			last_error = data.get("name", {}).get("last_error")
+			data.setdefault(name, {})["last_error"] = True
+			if args.only_show_changes and last_error:
 				continue
 			
-			print("Failed to fetch", configuration["url"] + ":", getattr(err, "reason", None) or err.args)
+			print("Failed to fetch", configuration["url"] + ":", getattr(r or error, "reason", None) or getattr(error, "args", None))
 	else:
-		last_modified = r.headers["Last-Modified"]
+		last_modified = r.headers.get("Last-Modified", None)
 		
 		if last_modified == None or configuration.get("override-last-modified"):
 			# Server doesn't support last modified; we'll have to do it ourselves
-			to_hash = r
+			to_hash = r.raw
 			
 			if configuration.get("criteria"):
-				to_hash = SoupHasher(BeautifulSoup(r), configuration.get("criteria"))
+				to_hash = SoupHasher(BeautifulSoup(r.text), configuration.get("criteria"))
 			
 			hexdigest = md5sum(to_hash)
 			
