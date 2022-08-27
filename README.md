@@ -1,8 +1,10 @@
 # ComicUpdateChecker
 
  This is a simple, configurable script that uses BeautifulSoup and requests to check a certain number
- of webpages (or elements of webpages) and notifies the user if there was any change. It is meant to
- be used with webcomics, but really any page or page-segment should work.
+ of webpages (or elements of webpages). It then compares those hashes of those
+ webpages to determine if they've updated since the previous check, notifying
+ the user if they have. I desinged it for use with webcomics, but really
+ any page or page-segment should work.
 
 ## Requirements 
 

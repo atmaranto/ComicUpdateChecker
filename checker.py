@@ -102,7 +102,7 @@ if __name__ == "__main__":
         checker_dir = os.path.join(appdata, "ComicUpdateChecker")
 
     if checker_dir is None:
-        fatal("Unable to find appplication data directory (LOCALAPPDATA, APPDATA, and HOME not set); exiting.", file)
+        fatal("Unable to find appplication data directory (LOCALAPPDATA, APPDATA, and HOME not set); exiting.")
     
     if not os.path.exists(checker_dir):
         os.makedirs(checker_dir)
@@ -190,7 +190,7 @@ if __name__ == "__main__":
             error = err
         
         if error is not None or not r.ok:
-            if getattr(r, 'status_code', None) == 304:
+            if getattr(r, 'status_code', None) == 304: # We use getattr here becuase this might be a URLError
                 if not args.only_show_changes:
                     print(name, "unmodified (error)")
                 
@@ -208,7 +208,7 @@ if __name__ == "__main__":
         else:
             last_modified = r.headers.get("Last-Modified", None)
             
-            if last_modified == None or configuration.get("override-last-modified"):
+            if last_modified is None or configuration.get("override-last-modified"):
                 # Server doesn't support last modified; we'll have to do it ourselves
                 to_hash = r.raw
                 
