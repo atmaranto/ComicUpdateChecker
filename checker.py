@@ -1,5 +1,30 @@
 """
 
+checker.py -- Checks whether or not the specific pages have been updated since
+              the last run of this program.
+
+MIT License
+
+Copyright (c) 2022 Anthony Maranto
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 """
 
 import sys, os, json, datetime, re, hashlib
@@ -10,21 +35,21 @@ TIMESTAMP_FORMAT = "%a, %d %b %Y %H:%M:%S %Z"
 READ_BUFFER_SIZE = 1024 * 1024 # 1MB, used for buffered md5
 
 def BeautifulSoup(f):
-	# Lazily load BeautifulSoup
-	from bs4 import BeautifulSoup as _BeautifulSoup
-	
-	return _BeautifulSoup(f, 'lxml')
+    # Lazily load BeautifulSoup
+    from bs4 import BeautifulSoup as _BeautifulSoup
+    
+    return _BeautifulSoup(f, 'lxml')
 
 def md5sum(readable):
-	md5 = hashlib.md5()
-	
-	while True:
-		data = readable.read(READ_BUFFER_SIZE)
-		if not data: break
-		
-		md5.update(data)
-	
-	return md5.hexdigest()
+    md5 = hashlib.md5()
+    
+    while True:
+        data = readable.read(READ_BUFFER_SIZE)
+        if not data: break
+        
+        md5.update(data)
+    
+    return md5.hexdigest()
 
 
 class SoupHasher:
@@ -91,7 +116,7 @@ if __name__ == "__main__":
         try:
             with open(config_file, "r", encoding="utf-8") as f:
                 config = json.load(f)
-        except json.decoder.JsonDecodeError as e:
+        except json.decoder.JSONDecodeError as e:
             fatal("Encountered JSON error while decoding config file\n{}".format(e.args[0]))
         
         if not isinstance(config, dict):
@@ -116,7 +141,7 @@ if __name__ == "__main__":
         try:
             with open(data_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except json.decoder.JsonDecodeError as e:
+        except json.decoder.JSONDecodeError as e:
             fatal("Encountered JSON error while decoding data file\n{}".format(e.args[0]))
         
         verbose("Loaded existing data file at {}".format(data_file))
