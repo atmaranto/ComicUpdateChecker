@@ -131,7 +131,13 @@ if __name__ == "__main__":
             if not configuration.get("url"):
                 fatal("Missing \"url\" attribute in configuration {}".format(name))
 
-    data_file = os.path.join(checker_dir, "data.json")
+    data_file = config.get("data_file")
+    if data_file is not None:
+        if not isinstance(data_file, str):
+            fatal("\"data_file\" must be a string if specified!")
+    else:
+        data_file = os.path.join(checker_dir, "data.json") # Default path of the data file
+
     verbose("Checker data is at:", data_file)
 
     if not os.path.isfile(data_file):
