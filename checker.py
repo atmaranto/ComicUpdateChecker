@@ -198,10 +198,10 @@ if __name__ == "__main__":
         os.makedirs(checker_dir)
     
     config = Config()
+    config_file = os.path.join(checker_dir, "config.json") # The first place we look for the config file
     
     config_path_history = []
     for i in range(MAX_CONFIG_REDIRECTS):
-        config_file = os.path.join(checker_dir, "config.json")
         verbose("Checker config is at:", config_file)
         config_path_history.append(config_file)
 
@@ -237,7 +237,7 @@ if __name__ == "__main__":
             
             break
     else:
-        fatal("Too many config redirects ({}). Config list:\n{}".format(MAX_CONFIG_REDIRECTS, "- {}\n".join(config_path_history)))
+        fatal("Too many config redirects ({}). Config list:\n- ".format(MAX_CONFIG_REDIRECTS, "\n- ".join(config_path_history)))
 
     data_file = config.get("data_file")
     if data_file is not None:
@@ -322,15 +322,14 @@ if __name__ == "__main__":
         else:
             last_modified = r.headers.get("Last-Modified", None)
             
+            to_hash = r.raw
+            if configuration.get("criteria"):
+                to_hash = SoupHasher(BeautifulSoup(r.text), configuration.get("criteria"))
+            
+            hexdigest = md5sum(to_hash)
+            
             if last_modified is None or configuration.get("override-last-modified"):
-                # Server doesn't support last modified; we'll have to do it ourselves
-                to_hash = r.raw
-                
-                if configuration.get("criteria"):
-                    to_hash = SoupHasher(BeautifulSoup(r.text), configuration.get("criteria"))
-                
-                hexdigest = md5sum(to_hash)
-                
+                # Server doesn't support last modified; we'll just have to check the hash
                 if data_item.get("hash") != hexdigest:
                     last_modified = datetime.datetime.now().strftime(TIMESTAMP_FORMAT)
                     data.setdefault(name, {})["hash"] = hexdigest
@@ -341,6 +340,7 @@ if __name__ == "__main__":
             else:
                 print("* {0:} modified {1:}".format(name.upper(), datetime.datetime.strptime(last_modified, TIMESTAMP_FORMAT)))
                 data.setdefault(name, {})["last_error"] = False
+                data.setdefault(name, {})["hash"] = hexdigest
                 data[name]["last_modified"] = last_modified
 
     if first_run_or_save:
