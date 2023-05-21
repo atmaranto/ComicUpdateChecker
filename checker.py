@@ -27,12 +27,13 @@ SOFTWARE.
 
 """
 
-import sys, os, json, datetime, re, hashlib
+import sys, os, json, datetime, hashlib
 import requests
 
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.192 Safari/537.36"
 TIMESTAMP_FORMAT = "%a, %d %b %Y %H:%M:%S %Z"
 READ_BUFFER_SIZE = 1024 * 1024 # 1MB, used for buffered md5
+MAX_CONFIG_REDIRECTS = 5
 
 def BeautifulSoup(f):
     # Lazily load BeautifulSoup
@@ -70,6 +71,95 @@ class SoupHasher:
         
         return to_return
 
+class Config:
+    """Config is mostly a drop-in replacement for dict, but it allows for multiple dicts to be used in a "chain", with the first dict taking for get
+       operations and the last taking priority for set operations."""
+    def __init__(self, data=None):
+        self.dicts = [] if data is None else [data]
+    
+    def add_config(self, d):
+        self.dicts.append(d)
+    
+    def __getitem__(self, name):
+        for d in self.dicts:
+            if name in d:
+                return d[name]
+
+        raise AttributeError("Config has no attribute {}".format(repr(name)))
+    
+    def __setitem__(self, key, item) -> None:
+        for d in self.dicts:
+            if key in d:
+                d[key] = item
+                return
+        
+        # Default to the last dict
+        self.dicts[-1][key] = item
+    
+    def __delitem__(self, key) -> None:
+        for d in self.dicts:
+            if key in d:
+                del d[key]
+                return
+        
+        raise AttributeError("Config has no attribute {}".format(repr(key)))
+    
+    def __contains__(self, key) -> bool:
+        for d in self.dicts:
+            if key in d:
+                return True
+        
+        return False
+    
+    def __iter__(self):
+        return iter(self.keys())
+    
+    def __len__(self) -> int:
+        return len(self.keys())
+    
+    def __repr__(self) -> str:
+        return repr(dict(self.items()))
+    
+    def __str__(self) -> str:
+        return str(dict(self.items()))
+    
+    def keys(self):
+        keys = set()
+        for d in self.dicts:
+            keys.update(d.keys())
+        
+        return keys
+    
+    def values(self):
+        values = []
+        for d in self.dicts:
+            values.extend(d.values())
+        
+        return values
+    
+    def items(self):
+        items = []
+        keys = set()
+        for d in self.dicts:
+            for k, v in d.items():
+                if k not in keys:
+                    keys.add(k)
+                    items.append((k, v))
+        
+        return items
+
+    def flatten(self):
+        """Flattens all the dicts into a single dict"""
+        return dict(self.items())
+
+    def get(self, item, default=None):
+        for d in self.dicts:
+            if item in d:
+                return d[item]
+        
+        return default
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -106,30 +196,48 @@ if __name__ == "__main__":
     
     if not os.path.exists(checker_dir):
         os.makedirs(checker_dir)
+    
+    config = Config()
+    
+    config_path_history = []
+    for i in range(MAX_CONFIG_REDIRECTS):
+        config_file = os.path.join(checker_dir, "config.json")
+        verbose("Checker config is at:", config_file)
+        config_path_history.append(config_file)
 
-    config_file = os.path.join(checker_dir, "config.json")
-    verbose("Checker config is at:", config_file)
-
-    if not os.path.isfile(config_file):
-        fatal("Warning: no config file at {}, nothing to do!".format(config_file))
-    else:
-        try:
-            with open(config_file, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except json.decoder.JSONDecodeError as e:
-            fatal("Encountered JSON error while decoding config file\n{}".format(e.args[0]))
-        
-        if not isinstance(config, dict):
-            fatal("Invalid JSON in config file (must evaluate to a dict, instead found type {})".format(repr(type(config))))
-        
-        comic_config = config.get("comic_config", {})
-        
-        for name, configuration in comic_config.items():
-            if not isinstance(configuration, dict):
-                fatal("Invalid configuration item for key {}".format(name))
+        if not os.path.isfile(config_file):
+            fatal("Warning: no config file at {}, nothing to do!".format(config_file))
+        else:
+            try:
+                with open(config_file, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+            except json.decoder.JSONDecodeError as e:
+                fatal("Encountered JSON error while decoding config file\n{}".format(e.args[0]))
             
-            if not configuration.get("url"):
-                fatal("Missing \"url\" attribute in configuration {}".format(name))
+            if not isinstance(cfg, dict):
+                fatal("Invalid JSON in config file (must evaluate to a dict, instead found type {})".format(repr(type(config))))
+            
+            config.add_config(cfg)
+
+            # We do this to support a "chain" of configs, potentially allowing the user to host a config on a shared drive but
+            # with some settings specific to their machine, such as those that require absolute paths.
+            if "next_config" in cfg:
+                config_file = cfg["next_config"]
+                verbose("Redirecting to config file:", config_file)
+                continue
+
+            comic_config = config.get("comic_config", {})
+            
+            for name, configuration in comic_config.items():
+                if not isinstance(configuration, dict):
+                    fatal("Invalid configuration item for key {}".format(name))
+                
+                if not configuration.get("url"):
+                    fatal("Missing \"url\" attribute in configuration {}".format(name))
+            
+            break
+    else:
+        fatal("Too many config redirects ({}). Config list:\n{}".format(MAX_CONFIG_REDIRECTS, "- {}\n".join(config_path_history)))
 
     data_file = config.get("data_file")
     if data_file is not None:
@@ -196,7 +304,7 @@ if __name__ == "__main__":
             error = err
         
         if error is not None or not r.ok:
-            if getattr(r, 'status_code', None) == 304: # We use getattr here becuase this might be a URLError
+            if getattr(r, 'status_code', None) == 304: # We use getattr here because this might be a URLError
                 if not args.only_show_changes:
                     print(name, "unmodified (error)")
                 
