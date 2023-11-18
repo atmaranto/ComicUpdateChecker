@@ -338,7 +338,11 @@ if __name__ == "__main__":
                     if not args.only_show_changes:
                         print(name, "unmodified (checked via hash)")
             else:
-                print("* {0:} modified {1:}".format(name.upper(), datetime.datetime.strptime(last_modified, TIMESTAMP_FORMAT)))
+                try:
+                    dt = datetime.datetime.strptime(last_modified, TIMESTAMP_FORMAT)
+                except ValueError:
+                    dt = datetime.datetime.strptime(last_modified, "%A, %d-%b-%Y %H:%M:%S %Z")
+                print("* {0:} modified {1:}".format(name.upper(), dt))
                 data.setdefault(name, {})["last_error"] = False
                 data.setdefault(name, {})["hash"] = hexdigest
                 data[name]["last_modified"] = last_modified
